@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         百度网盘共享文件库目录清单导出
 // @namespace    https://github.com/Avens666/BaidunNetDisk-script
-// @version      0.1
+// @version      0.2
 // @description  try to take over the world!
 // @author       Avens
 // @match        https://pan.baidu.com/mbox*
@@ -177,7 +177,7 @@
         for(var n = 0 ; n < dirinfo.length ; n++)
         {
          //   console.log(dirinfo[n].getAllInfo("") );
-            output +=dirinfo[n].getAllInfo("") +"\r\n";
+            output +=dirinfo[n].getAllInfo("", 0) +"\r\n";
         }
 
         output += "<end>";
@@ -201,65 +201,78 @@
                 continue;
             }
             var dir_url ="";
-            if(g_type == 1)
-            {
-                //https://pan.baidu.com/mbox/msg/shareinfo?msg_id=2503597858817404855&page=1&from_uk=2181389256&to_uk=1817073614&type=1&fs_id=929228779091096&num=50
-                dir_url ="https://pan.baidu.com/mbox/msg/shareinfo?msg_id=" + dir_info[i].msg_id + "&page=1&from_uk=" + dir_info[i].from_uk + "&to_uk=" + dir_info[i].to_uk  +"&type=1&fs_id="+ dir_info[i].fs_id +"&num=100";
-            }
-            else if(g_type == 2)
-            {
-                dir_url ="https://pan.baidu.com/mbox/msg/shareinfo?msg_id=" + dir_info[i].msg_id + "&page=1&from_uk=" + dir_info[i].from_uk + "&gid=" + gidv +"&type=2&fs_id="+ dir_info[i].fs_id +"&num=100";
-            }
-            console.log(dir_url);
-            $.ajax({
-                type:'GET',
-                url:dir_url,
-                data:{},
-                dataType: "json",
-                async: false,
-                success:function(res){
-                    var info="" ;
-                    if(res.errno != 0)
-                    {
-                        console.log("errno:" + res.errno + "url: " + dir_url);
-                        is_failed = 1;
-                        return;
-                    }
-                    var fileinfo = [];
-                    var file_lst = res.records;
-                    var len = file_lst.length;
-                    var b_has_dir=0;
-                    for(var n = 0 ; n < len ; n++) {
-                        var _name  = file_lst[n].server_filename;
-                        var _size  = file_lst[n].size;
-                        var _isDir = file_lst[n].isdir;
-                        var _fs_id = file_lst[n].fs_id;
-//console.log( "11msg: " + dir_info[i] );
-//console.log( "33msg: " + dir_info[i].msg_id );
-                        var dinfo = createFileInfo(_name, _isDir, _size, _fs_id, dir_info[i].msg_id, dir_info[i].from_uk, dir_info[i].to_uk );
-                        dinfo.path = file_lst[n].path;
-                        fileinfo.push(dinfo);
-                        info = info + "\n" + dinfo.getInfo();
+            var fileinfo = [];
 
-                        if(_isDir == 1)
-                        {
-                            dir_info[i].num_subdir += 1;
-                            b_has_dir =1;
-                        }
-                        else
-                        {
-                            dir_info[i].num_subfile += 1;
-                        }
-                    }
-                    dir_info[i].sub_file_objs = fileinfo;
-                  //  alert( info );
+            var b_has_dir=0;
+            var n_page=1;
+            var b_more = 1;
 
-                    if(b_has_dir == 1) queryDir(fileinfo, gidv, 0); //有目录 递归调用
-                },
-                error:function(err){
-                    console.log(err);
+            while(n_page <= 30 && b_more == 1 ) //一次最多取100个，超出了要分页取 z最多取3000
+            {
+                if(g_type == 1)
+                {
+                    //https://pan.baidu.com/mbox/msg/shareinfo?msg_id=2503597858817404855&page=1&from_uk=2181389256&to_uk=1817073614&type=1&fs_id=929228779091096&num=50
+                    dir_url ="https://pan.baidu.com/mbox/msg/shareinfo?msg_id=" + dir_info[i].msg_id + "&page=" + n_page + "&from_uk=" + dir_info[i].from_uk + "&to_uk=" + dir_info[i].to_uk  +"&type=1&fs_id="+ dir_info[i].fs_id +"&num=100";
                 }
-            });
+                else if(g_type == 2)
+                {
+                    dir_url ="https://pan.baidu.com/mbox/msg/shareinfo?msg_id=" + dir_info[i].msg_id + "&page=1&from_uk=" + dir_info[i].from_uk + "&gid=" + gidv +"&type=2&fs_id="+ dir_info[i].fs_id +"&num=100";
+                }
+                console.log(dir_url);
+
+
+                $.ajax({
+                    type:'GET',
+                    url:dir_url,
+                    data:{},
+                    dataType: "json",
+                    async: false,
+                    success:function(res){
+                        var info="" ;
+                        if(res.errno != 0)
+                        {
+                            console.log("errno:" + res.errno + "url: " + dir_url);
+                            is_failed = 1;
+                            return;
+                        }
+                        var file_lst = res.records;
+                        var len = file_lst.length;
+                        b_more = res.has_more;
+
+                        for(var n = 0 ; n < len ; n++) {
+                            var _name  = file_lst[n].server_filename;
+                            var _size  = file_lst[n].size;
+                            var _isDir = file_lst[n].isdir;
+                            var _fs_id = file_lst[n].fs_id;
+                            //console.log( "11msg: " + dir_info[i] );
+                            //console.log( "33msg: " + dir_info[i].msg_id );
+                            var dinfo = createFileInfo(_name, _isDir, _size, _fs_id, dir_info[i].msg_id, dir_info[i].from_uk, dir_info[i].to_uk );
+                            dinfo.path = file_lst[n].path;
+                            fileinfo.push(dinfo);
+                            info = info + "\n" + dinfo.getInfo();
+
+                            if(_isDir == 1)
+                            {
+                                dir_info[i].num_subdir += 1;
+                                b_has_dir =1;
+                            }
+                            else
+                            {
+                                dir_info[i].num_subfile += 1;
+                            }
+                        }
+                        //  alert( info );
+
+                        //                    if(b_has_dir == 1) queryDir(fileinfo, gidv, 0); //有目录 递归调用
+                    },
+                    error:function(err){
+                        console.log(err);
+                    }
+                });
+                n_page++;
+            }
+            dir_info[i].sub_file_objs = fileinfo;
+            if(b_has_dir == 1) queryDir(fileinfo, gidv, 0); //有目录 递归调用
         }
     }
 
@@ -301,26 +314,27 @@
         ofile.getInfo = function() {
             if(this.isDir != 0)
             { //文件夹
-                return this.name + " [文件夹大小:" +  this.getSize(this.size )  + " 子文件夹数: " + this.num_subdir + " 子文件数: " + this.num_subfile +"]";
+                return this.name + " [文件夹大小:" +  this.getSize(this.size )  + " 子文件夹数: " + this.num_subdir + " 子文件数: " + this.num_subfile +"]" ;
             }
             else
             {//文件
-                return this.name + " (" + this.getSize( this.size )  + ")";
+                return this.name + " (" + this.getSize( this.size )  + ")" ;
             }
          };
 
-        ofile.getAllInfo = function( blank ) {
+        ofile.getAllInfo = function( blank, level ) {
             var info;
             if(this.isDir != 0)
             { //文件夹
                 info = blank+"├─" + this.name + " [文件夹大小:" +  this.getSize( this.getAllSize() )  + " 子文件夹数: " + this.num_subdir + " 子文件数: " + this.num_subfile +"]\r\n";
+                level++;
                for(var n = 0 ; n < this.sub_file_objs.length ; n++) {
-                 info += this.sub_file_objs[n].getAllInfo(blank+"│  ");
+                 info +=  level+ this.sub_file_objs[n].getAllInfo(blank+"│  ", level);
              }
             }
             else
             {//文件
-                info = blank+ "│  "+this.name + " (" + this.getSize( this.size  )  + ")\r\n";
+                info = blank+ "│  "+this.name + " (" + this.getSize( this.size  )  + ")  --  " + this.path + "\r\n";
             }
             return info;
          };
