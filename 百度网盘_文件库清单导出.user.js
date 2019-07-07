@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         百度网盘共享文件库目录清单导出
 // @namespace    https://github.com/Avens666/BaidunNetDisk-script
-// @version      0.2
+// @version      0.3
 // @description  try to take over the world!
 // @author       Avens
 // @match        https://pan.baidu.com/mbox*
@@ -83,7 +83,7 @@
                     //  saveAs(res, "hello.txt");
                     if(res.errno != 0)
                     {
-                        alert("errno:" + res.errno + "url: " + gid_url);
+                        console.warn("errno:" + res.errno + "url: " + gid_url);
                         return;
                     }
                     var msg_lst = res.records.msg_list;
@@ -134,7 +134,7 @@
                 success:function(res){
                     if(res.errno != 0)
                     {
-                        alert("errno:" + res.errno + "url: " + gid_url);
+                         console.log("errno:" + res.errno + "url: " + gid_url);
                         return;
                     }
                     var rlist = res.records.list;
@@ -166,7 +166,7 @@
                //      alert( info );
                 },
                 error:function(err){
-                   console.log(err);
+                   console.error(err);
                 }
             });
             //Step3 遍历主目录
@@ -188,13 +188,8 @@
 
     function queryDir(dir_info, gidv, bfirst){
       var obj_length = dir_info.length;
-        var is_failed = 0;
+
         for(var i = 0 ; i < obj_length ; i++) {
-            if(is_failed == 1 )
-            {
-                alert("is_failed:" +is_failed + " dir_info[i].isDir: " + dir_info[i].isDir);
-                break;
-            }
 
             if(dir_info[i].isDir == 0)
             {//文件跳过
@@ -207,8 +202,18 @@
             var n_page=1;
             var b_more = 1;
 
-            while(n_page <= 30 && b_more == 1 ) //一次最多取100个，超出了要分页取 z最多取3000
+             var is_failed_p = 0;
+            while(n_page <= 30 && b_more == 1 || is_failed_p > 0) //一次最多取100个，超出了要分页取 z最多取3000
             {
+                if(is_failed_p > 0 )
+                {
+                    console.log("is_failed_p:" +is_failed_p + " page: " + n_page + " dir_info[i].isDir: " + dir_info[i].isDir);
+                    if(is_failed_p > 2 ) //多试几次
+                    {
+                        break;
+                    }
+                }
+
                 if(g_type == 1)
                 {
                     //https://pan.baidu.com/mbox/msg/shareinfo?msg_id=2503597858817404855&page=1&from_uk=2181389256&to_uk=1817073614&type=1&fs_id=929228779091096&num=50
@@ -216,7 +221,7 @@
                 }
                 else if(g_type == 2)
                 {
-                    dir_url ="https://pan.baidu.com/mbox/msg/shareinfo?msg_id=" + dir_info[i].msg_id + "&page=1&from_uk=" + dir_info[i].from_uk + "&gid=" + gidv +"&type=2&fs_id="+ dir_info[i].fs_id +"&num=100";
+                    dir_url ="https://pan.baidu.com/mbox/msg/shareinfo?msg_id=" + dir_info[i].msg_id + "&page=" + n_page + "&from_uk=" + dir_info[i].from_uk + "&gid=" + gidv +"&type=2&fs_id="+ dir_info[i].fs_id +"&num=100";
                 }
                 console.log(dir_url);
 
@@ -231,10 +236,11 @@
                         var info="" ;
                         if(res.errno != 0)
                         {
-                            console.log("errno:" + res.errno + "url: " + dir_url);
-                            is_failed = 1;
+                            console.warn("errno:" + res.errno + "url: " + dir_url);
+                             is_failed_p ++;
                             return;
                         }
+                         is_failed_p =0; //成功重置
                         var file_lst = res.records;
                         var len = file_lst.length;
                         b_more = res.has_more;
@@ -247,7 +253,12 @@
                             //console.log( "11msg: " + dir_info[i] );
                             //console.log( "33msg: " + dir_info[i].msg_id );
                             var dinfo = createFileInfo(_name, _isDir, _size, _fs_id, dir_info[i].msg_id, dir_info[i].from_uk, dir_info[i].to_uk );
-                            dinfo.path = file_lst[n].path;
+                            dinfo.path = "";
+                            var lastn = file_lst[n].path.lastIndexOf("/") ;
+                            if(lastn > 0)
+                                dinfo.path = file_lst[n].path.substring(0,lastn+1);
+                            else
+                                dinfo.path = file_lst[n].path;
                             fileinfo.push(dinfo);
                             info = info + "\n" + dinfo.getInfo();
 
@@ -261,15 +272,15 @@
                                 dir_info[i].num_subfile += 1;
                             }
                         }
+                        n_page++;
                         //  alert( info );
-
                         //                    if(b_has_dir == 1) queryDir(fileinfo, gidv, 0); //有目录 递归调用
                     },
                     error:function(err){
-                        console.log(err);
+                        console.error(err);
+                        is_failed_p ++;
                     }
                 });
-                n_page++;
             }
             dir_info[i].sub_file_objs = fileinfo;
             if(b_has_dir == 1) queryDir(fileinfo, gidv, 0); //有目录 递归调用
