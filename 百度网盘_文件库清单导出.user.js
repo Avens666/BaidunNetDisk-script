@@ -123,7 +123,7 @@
         else  if(g_type == 1)
         {
             // https://pan.baidu.com/mbox/msg/sessioninfo?to_uk=2181389256&type=2
-            gid_url = "https://pan.baidu.com/mbox/msg/sessioninfo?to_uk=" + to_arr[0].value + "&type=2";
+            gid_url = "https://pan.baidu.com/mbox/msg/sessioninfo?to_uk=" + frm_arr[0].value + "&type=2";
           //  alert(gid_url);
             $.ajax({
                 type:'GET',
