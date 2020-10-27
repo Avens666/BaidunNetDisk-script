@@ -357,16 +357,13 @@
         $('.' + classMap['title']).append($dropdownbutton);
         $dropdownbutton.click(exportDir);
 
-        var $dropdownbutton3 = $('<a class="list-filter" href="javascript:void( 0 );" onclick="exportSubDir()" node-type="btn_export" title="导出任意层级的子文件夹信息，但需要先在主目录下，选择文件夹所在根目录，点击<ID按钮>获取主目录信息，然后可以进入子目录，选择要导出的子目录进行导出!" style="display: inline;">子目录</a>');
+        var $dropdownbutton3 = $('<a class="list-filter" href="javascript:void( 0 );" onclick="exportSubDir()" node-type="btn_export" title="导出任意层级的子文件夹信息。\n需要先在主目录下，选择文件夹所在根目录，点击<ID按钮>获取主目录信息。\n然后可以进入子目录，选择要导出的子目录进行导出!" style="display: inline;">子目录</a>');
         $('.' + classMap['title']).append($dropdownbutton3);
         $dropdownbutton3.click(exportSubDir);
 
-        var $dropdownbutton2 = $('<a class="list-filter" href="javascript:void( 0 );" onclick="getGID()" node-type="btn_export" title="为了导出子文件夹，需要先获取主目录信息, 请在文件库根目录下，选择要导出的子目录所在的根目录后执行!" style="display: inline;">ID</a>');
+        var $dropdownbutton2 = $('<a class="list-filter" href="javascript:void( 0 );" onclick="getGID()" node-type="btn_export" title="为了导出子文件夹，需要先获取主目录信息。\n请在文件库根目录下，选择要导出的子目录所在的根目录后执行!" style="display: inline;">ID</a>');
         $('.' + classMap['title']).append($dropdownbutton2);
         $dropdownbutton2.click(getGID);
-
-
-
     }
     addButton();
 //    alert("导出");
