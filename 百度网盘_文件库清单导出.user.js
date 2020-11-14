@@ -1,124 +1,78 @@
 // ==UserScript==
-// @name         百度网盘共享文件库目录清单导出
+// @name        百度网盘群共享文件 - shurj.com 书软件
 // @namespace    https://github.com/Avens666/BaidunNetDisk-script
-// @version      0.5
+// @version      1.0
 // @description  try to take over the world!
 // @author       Avens
 // @match        https://pan.baidu.com/mbox*
 // @grant        none
 // @require      https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/1.3.3/FileSaver.min.js
-// @require      https://cdn.bootcdn.net/ajax/libs/jquery/3.1.1/jquery.min.js
-// @note         2020.10.26-V0.5 增加取子目录的功能
+// @require     https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js
+// @require     https://cdn.jsdelivr.net/npm/axios@0.21.0/dist/axios.min.js
+// @require     https://cdn.jsdelivr.net/npm/underscore@1.11.0/underscore.min.js
+// @require     https://cdn.bootcss.com/qs/6.7.0/qs.min.js
+
 // ==/UserScript==
-
-//
-// 主目录类型 type1 <li class="" node-type="sharelist-item" data-id="94956815229992845" data-frm="2687769004" data-to="2181389256" data-fid="1117071517154765">
-// 主目录类型 type2 <li class="" node-type="sharelist-item" data-id="8522742650637316248" data-frm="574440818" data-gid="697250947953272568" data-fid="494436556508384">
-// 子目录 <li class="" node-type="sharelist-item" data-fid="715901954634145">
-
 
 (function() {
     'use strict';
     // Your code here...
-  var classMap = {
-    'title': 'sharelist-view-toggle',
-  };
+    console.log('ready!')
+    var classMap = {    'title': 'sharelist-view-toggle'  };
     var g_type=0;
-    var g_gid;
-    var g_msgid;
-    var g_frm;
-    var g_to_uk;
+    var lists , g_gid , g_msgid , g_frm , g_to_uk ;
 
-    //获取主目录信息
- function getGID(){
-     //遍历当前显示的目录及文件信息
-     //step1 取得gid 一个分享文件库的主ID  有两种type，一种使用form_uk 加gid查询 这是type2; 一种使用 form_uk 加 to_uk查询,这是type1
-     let lst = Array.from(document.getElementsByTagName('li')).filter(item => item.getAttribute('node-type') === 'sharelist-item');
-     const obj = lst.filter(item => item.getAttribute('class') === 'on');
-     var obj_length = obj.length;
-     g_msgid = null;
-     if(obj_length != 1)
-     {
-         alert("请在文件库根目录下,仅选中一个目录后执行!" );
-         return;
-     }
+    autoGetGIDByClick();
+    // 通过点击文件夹自动获取gid，
+    function autoGetGIDByClick(){
+        $('.sharelist-container ul').click(e=>{
+            let item = $(e.currentTarget).find('li.hover') ; 
+            if( !item.attr('data-gid') ) return ; //子目录或文件跳出； item.attr('data-dir') != '1'  点击文件也会进入这里，但不影响使用
+            g_msgid = item.attr('data-id') , g_gid = item.attr('data-gid') , g_frm = item.attr('data-frm') , g_to_uk =  item.attr('data-to') ;
+        })
+    }
+    //获取主目录信息，可能会退出子目录，子目录层级太深要出错，还是用双击，进入目录稳妥一些。
+    // find('a').eq(0) 也无法获取，完全是...隐藏了路劲。
+    // function autoGetGID(){
+    //     let isRootDir = $('.sharelist-history').eq(0).is(":hidden") ;
+    //     let selectDir = $('.sharelist-history li[node-type="sharelist-history-list"]').eq(0).text().replace(/>.*/,'');
+    //     let { id : g_msgid , gid : g_gid  , frm : g_frm ,to : g_to_uk, name } = lists.filter((i,a)=>a.name == selectDir)[0] ; // jquery 的 i,a 是反的。和Array 不同。
+    //     g_type =  g_to_uk? 1 : 2 ;
+    //     if( isRootDir ) return null ;
+    //     return g_msgid ;
+    // }
+    function getRootGids(){
+        // let isRootDir = $('.sharelist-history').eq(0).is(":hidden") ;
+        // let selectDir = $('.sharelist-history li[node-type="sharelist-history-list"]').eq(0).text().replace(/>.*/,'');
+        lists = $('.sharelist-container ul').eq(0).find('li').map((index,i)=> Object({ id: i.getAttribute('data-id') ,gid: i.getAttribute('data-gid') ,frm: i.getAttribute('data-frm') ,to: i.getAttribute('data-to') , name: $(i).find('.sharelist-item-title-name').text() }) ) ;
+    }
+     
+   async function exportSubDir(){
+        // let lst = Array.from(document.getElementsByTagName('li')).filter(item => item.getAttribute('node-type') === 'sharelist-item');
+        // const obj = lst.filter(item => item.getAttribute('class') === 'on');
+        var lis = $('.sharelist-container ul').eq(0).find('li.on');
+        lis = [...lis] ;
 
-     //判断是否目录
-     //<div class="sharelist-item-size global-ellipsis">-</div>
-     let lt = Array.from(obj[0].children).filter(item => item.getAttribute('class') === 'sharelist-item-size global-ellipsis');
-     if(lt.length == 1)
-     {
-         if(lt[0].textContent == '-')
-         {
-             g_msgid = obj[0].getAttribute('data-id');
-             g_gid = obj[0].getAttribute("data-gid");
-             g_frm = obj[0].getAttribute("data-frm");
-             g_to_uk = obj[0].getAttribute('data-to');
-
-             if (g_to_uk === null) {
-                 g_type = 2;
-             } else {
-                 g_type = 1;
-             }
-         }
-     }
-     else
-     {
-         alert("请在文件库根目录下,仅选中一个目录后执行!" );
-         return;
-     }
-
-    //    alert("g_gid=" + g_gid + "  msg_id=" + g_msgid+ " frm="+g_frm+ " to="+g_to_uk);
-        if( g_msgid === null) {
-            alert("请在文件库根目录下,选中一个目录后执行!" );
-               return;
-        }
-        else
-        {
-            alert("取得主目录信息成功，可以单独导出该目录下的子目录信息!" );
-        }
-  }
-
-  function exportSubDir(){
-        let lst = Array.from(document.getElementsByTagName('li')).filter(item => item.getAttribute('node-type') === 'sharelist-item');
-        const obj = lst.filter(item => item.getAttribute('class') === 'on');
-        var obj_length = obj.length;
-        var selected_arr = [];
-        var dirinfo = []; //一级列表数组
-
-        if( g_msgid === null)
-        {
-            alert("请在文件库根目录下执行“获取ID”!" );
-            return;
-        }
-
-        for(var i = 0 ; i < obj_length ; i++) {
-            var _name  = $(obj[i]).find('span[class="global-ellipsis sharelist-item-title-name"]').find('a').html();
-            var _size  = 1;
-            var _isDir = 1;
-            var _fs_id = obj[i].getAttribute("data-fid");
-            var dinfo = createFileInfo(_name, _isDir, _size, _fs_id, g_msgid, g_frm, g_to_uk);
-            dirinfo.push(dinfo);
-        }
-
+        let selectDir = $('.sharelist-history li[node-type="sharelist-history-list"]').eq(0).text().replace(/>.*/,'');
+        // g_msgid = autoGetGID() ;
+        if( g_msgid === null) return alert("请在文件库根目录下执行“获取ID”!" );
+        let dirinfo = lis.map(li=>{
+            let _name  = $(li).find('span[class="global-ellipsis sharelist-item-title-name"]').find('a').html();
+            let _size  = 1;
+            let _isDir = 1;
+            let _fs_id = li.getAttribute("data-fid");
+            return createFileInfo(_name, _isDir, _size, _fs_id, g_msgid, g_frm, g_to_uk);
+        })
 
         //Step3 遍历目录
-        queryDir(dirinfo);// 传gid
-        var output="";
-        for(var n = 0 ; n < dirinfo.length ; n++)
-        {
-            //   console.log(dirinfo[n].getAllInfo("") );
-            output +=dirinfo[n].getAllInfo("", 0) +"\r\n";
-        }
-
-        output += "<end>";
-        var blob = new Blob([output], {type: "text/plain;charset=utf-8"});
-        saveAs(blob, "exportDirList.txt");
+        await queryDir(dirinfo);// 传gid
+        saveFiles(dirinfo)
      }
 
-  function exportDir(){
-        let lst = Array.from(document.getElementsByTagName('li')).filter(item => item.getAttribute('node-type') === 'sharelist-item');
-        const obj = lst.filter(item => item.getAttribute('class') === 'on');
+   async function exportDir(){
+        // let lst = Array.from(document.getElementsByTagName('li')).filter(item => item.getAttribute('node-type') === 'sharelist-item');
+        // const obj = lst.filter(item => item.getAttribute('class') === 'on');
+        var obj = $('.sharelist-container ul').eq(0).find('li.on');
         var obj_length = obj.length;
         var selected_arr = [];
         var dirinfo = []; //一级列表数组
@@ -152,36 +106,72 @@
             }
         }
 
-        if( g_msgid === null)
-        {
-            alert("请在文件库根目录下执行!" );
-            return;
-        }
-
+        if( g_msgid === null) return alert("请在文件库根目录下执行!" );
 
         //Step3 遍历目录
-        queryDir(dirinfo);
-        var output="";
-        for(var n = 0 ; n < dirinfo.length ; n++)
-        {
-            //   console.log(dirinfo[n].getAllInfo("") );
-            output +=dirinfo[n].getAllInfo("", 0) +"\r\n";
-        }
+        await queryDir(dirinfo);
+        saveFiles(dirinfo)
+     }
+     async function saveFiles(dirinfo){
+        let tempFiles = getFiles(dirinfo) ; 
+        let baiduFiles = _.flatten(tempFiles) ;
+        window.baiduPanDirInfo = dirinfo , window.baiduFiles = baiduFiles ;
+        let epubs = baiduFiles.filter(i=> i&& i.name && i.name.includes('epub') ) ;
+        let azws = baiduFiles.filter(i=> i&& i.name && i.name.includes('azw') ) ;
+        console.warn( '导出目录：' , { dirLen: baiduFiles.length  , epubLen: epubs.length , otherLen : baiduFiles.length - epubs.length } )
+        let fileName = dirinfo.map(i=> i.getAllInfo("", 0)).join("\r\n") + "<end>\n";
+        var blob = new Blob([fileName], {type: "text/plain;charset=utf-8"});
+        saveAs(blob, "exportFileNames.txt");
 
-        output += "<end>";
-        var blob = new Blob([output], {type: "text/plain;charset=utf-8"});
-        saveAs(blob, "exportDirList.txt");
+        // let links = [] ;
+        let links = '' ;
+        var len = baiduFiles.length ;
+        for(let i=0;i<= len-1 ;i++){
+            var item = baiduFiles[i] ;
+            let link = await item.getLink() ;
+            if( !link ) continue ;
+            localStorage.setItem(`fs_id${ item.fs_id }`, link)
+            links += link + '\n' ;
+            push2DownloadApp(link, item.name , `E:\\Downloads${ item.path }` , item.fs_id );
+        }
+        blob = new Blob([links], {type: "text/plain;charset=utf-8"});
+        saveAs(blob, "exportFileLinks.txt");
      }
 
-    function queryDir(dir_info){
+    async function push2DownloadApp(link,filename , dir , fs_id ){
+        let url = `http://localhost:6800/jsonrpc` ;
+        let BDUSS = getBDUSS() ;
+        if (!BDUSS) return alert('百度登录状态异常');
+        dir = dir || 'E:\\Downloads' ;
+        let json_rpc = {id: new Date().getTime(),jsonrpc: '2.0',method: 'aria2.addUri',
+        params: ["token:" , [link],{dir , out: filename, header: ['User-Agent:' + navigator.userAgent , 'Cookie: BDUSS=' + getBDUSS()]}
+            ]
+        };
+        let res = await axios.post( url , JSON.stringify(json_rpc) ).then(r=>r.data); 
+        if( fs_id && res && res.result ) localStorage.setItem(`fs_id${fs_id}`, 'done' )
+        console.log('push2DownloadApp: ' , filename , res ,  link) ;
+    }
+    function getBDUSS() {
+        let baiduyunPlugin_BDUSS = getStorage('baiduyunPlugin_BDUSS') ? getStorage('baiduyunPlugin_BDUSS') : '{"baiduyunPlugin_BDUSS":""}';
+        let BDUSS = JSON.parse(baiduyunPlugin_BDUSS).BDUSS;
+        if (!BDUSS) return '' ; // alert('');
+        return BDUSS;
+    }
+
+    function getFiles  ( dirFile ){
+        if( _.isArray(dirFile) ) return dirFile.map(i=>getFiles(i)) 
+        if( dirFile.isDir == 0 ) return [dirFile] ;
+        dirFile.sub_file_objs = dirFile.sub_file_objs || [] ;
+        if(dirFile.sub_file_objs.length) return dirFile.sub_file_objs.map(i=>getFiles(i)) 
+        else return [dirFile] ;
+    }
+
+    async function queryDir(dir_info){
       var obj_length = dir_info.length;
 
-        for(var i = 0 ; i < obj_length ; i++) {
+        for(let i = 0 ; i < obj_length ; i++) {
 
-            if(dir_info[i].isDir == 0)
-            {//文件跳过
-                continue;
-            }
+            if(dir_info[i].isDir == 0)  continue; //文件跳过
             var dir_url ="";
             var fileinfo = [];
 
@@ -212,83 +202,84 @@
                 }
                 console.log(dir_url);
 
+                let res = await axios.get(dir_url ).then(r=>r.data).catch(e=>{ console.error('shareinfo error:' ,e), is_failed_p ++ }) ;
+                // 可能不是json对象，返回了意料外的html内容，
+                if( !res ) { 
+                    is_failed_p ++ , console.warn("errno: null"  + "url: " + dir_url)  ;
+                    continue ;
+                }
+                if( res.errno) {
+                     is_failed_p ++ , console.warn("errno:" + res.errno + "url: " + dir_url)  ;
+                     continue ;
+                } ;
+                var info="" ;
+                is_failed_p =0; //成功重置
+                var file_lst = res.records || [];
+                var len = file_lst.length;
+                b_more = res.has_more;
 
-                $.ajax({
-                    type:'GET',
-                    url:dir_url,
-                    data:{},
-                    dataType: "json",
-                    async: false,
-                    success:function(res){
-                        var info="" ;
-                        if(res.errno != 0)
-                        {
-                            console.warn("errno:" + res.errno + "url: " + dir_url);
-                             is_failed_p ++;
-                            return;
-                        }
-                         is_failed_p =0; //成功重置
-                        var file_lst = res.records;
-                        var len = file_lst.length;
-                        b_more = res.has_more;
+                for(var n = 0 ; n < len ; n++) {
+                    var _name  = file_lst[n].server_filename;
+                    var _size  = file_lst[n].size;
+                    var _isDir = file_lst[n].isdir;
+                    var _fs_id = file_lst[n].fs_id;
+                    //console.log( "11msg: " + dir_info[i] );
+                    //console.log( "33msg: " + dir_info[i].msg_id );
+                    var dinfo = createFileInfo(_name, _isDir, _size, _fs_id, dir_info[i].msg_id, dir_info[i].from_uk, dir_info[i].to_uk );
+                    dinfo.path = "";
+                    var lastn = file_lst[n].path.lastIndexOf("/") ;
+                    if(lastn > 0)
+                        dinfo.path = file_lst[n].path.substring(0,lastn+1);
+                    else
+                        dinfo.path = file_lst[n].path;
+                    fileinfo.push(dinfo);
+                    info = info + "\n" + dinfo.getInfo();
 
-                        for(var n = 0 ; n < len ; n++) {
-                            var _name  = file_lst[n].server_filename;
-                            var _size  = file_lst[n].size;
-                            var _isDir = file_lst[n].isdir;
-                            var _fs_id = file_lst[n].fs_id;
-                            //console.log( "11msg: " + dir_info[i] );
-                            //console.log( "33msg: " + dir_info[i].msg_id );
-                            var dinfo = createFileInfo(_name, _isDir, _size, _fs_id, dir_info[i].msg_id, dir_info[i].from_uk, dir_info[i].to_uk );
-                            dinfo.path = "";
-                            var lastn = file_lst[n].path.lastIndexOf("/") ;
-                            if(lastn > 0)
-                                dinfo.path = file_lst[n].path.substring(0,lastn+1);
-                            else
-                                dinfo.path = file_lst[n].path;
-                            fileinfo.push(dinfo);
-                            info = info + "\n" + dinfo.getInfo();
-
-                            if(_isDir == 1)
-                            {
-                                dir_info[i].num_subdir += 1;
-                                b_has_dir =1;
-                            }
-                            else
-                            {
-                                dir_info[i].num_subfile += 1;
-                            }
-                        }
-                        n_page++;
-                        //  alert( info );
-                    },
-                    error:function(err){
-                        console.error(err);
-                        is_failed_p ++;
+                    if(_isDir == 1)
+                    {
+                        dir_info[i].num_subdir += 1;
+                        b_has_dir =1;
                     }
-                });
+                    else
+                    {
+                        dir_info[i].num_subfile += 1;
+                    }
+                }
+                n_page++;
+                //  alert( info );
             }
             dir_info[i].sub_file_objs = fileinfo;
-            if(b_has_dir == 1) queryDir(fileinfo); //有目录 递归调用
+            if(b_has_dir == 1) await queryDir(fileinfo); //有目录 递归调用
         }
+    }
+    async function getFileDownloadLink( primaryid , fs_id ){
+        let sharedownload = `https://pan.baidu.com/api/sharedownload?sign=&timestamp=&bdstoken=${ yunData.MYBDSTOKEN || '' }&channel=chunlei&web=1&app_id=250528&logid=${ getLogID() }=&clienttype=0`
+        let opts = { headers: {    'Content-Type': 'application/x-www-form-urlencoded'  } }
+        let data = { encrypt: 0,uk: 4215730515,product: 'mbox', primaryid: primaryid }
+        var qs = Qs 
+        data = qs.stringify(data) ;
+         //,fid_list:[this.fs_id] , extra: {"type":"group","gid":"874216807572575634"}
+        data = `${data}&fid_list=["${fs_id}"]&extra={"type":"group","gid":"`${g_gid}`"}`
+        let res = await axios.post(sharedownload , data, opts ).then(r=>r.data).catch(e=> console.error('sharedownload error:',e)) ;
+        if(!res) return console.warn("errno: null"  + "url: " + sharedownload); 
+        if(res.errno) return console.warn("errno:" + res.errno + "，msg_id: " + primaryid ); 
+        return res && res.list ? res.list.map(i=>i.dlink).join('\n') : '' ;
     }
 
     // 目录或文件对象
-    function createFileInfo(name,isDir,size, fs_id, msg_id, frm, to) {
-        var ofile = new Object;
-        ofile.name = name;  //文件(夹)名称
-        ofile.isDir = isDir; //是否文件夹
-        ofile.size = size;  //文件大小
-        ofile.fs_id= fs_id;
-        ofile.msg_id= msg_id;
-        ofile.from_uk=frm;
-        ofile.to_uk=to;
-        ofile.num_subfile = 0;  //子文件数量
-        ofile.num_subdir = 0;  //子目录数量
-        ofile.num_allfile = 0;  //递归子目录数量
-        ofile.num_alldir = 0;  //递归子文件数量
-        ofile.sub_file_objs=[]; //子文件对象
-        ofile.path="";
+    // name;  //文件(夹)名称
+    //     isDir; //是否文件夹
+    //     size;  //文件大小
+    //     num_subfile = 0;  //子文件数量
+    //     num_subdir = 0;  //子目录数量
+    //     num_allfile = 0;  //递归子目录数量
+    //     num_alldir = 0;  //递归子文件数量
+    //     sub_file_objs=[]; //子文件对象
+    function createFileInfo(name,isDir,size, fs_id, msg_id, from_uk, to) {
+        let ofile = { name,isDir,size, fs_id, msg_id, from_uk, to , path: '' } ; 
+        ofile.getLink = async function(){
+            return await getFileDownloadLink( this.msg_id , this.fs_id) ;
+        }
         ofile.getSize = function( s) //返回尺寸
         {
             if(s < 1024)
@@ -309,14 +300,8 @@
             }
         };
         ofile.getInfo = function() {
-            if(this.isDir != 0)
-            { //文件夹
-                return this.name + " [文件夹大小:" +  this.getSize(this.size )  + " 子文件夹数: " + this.num_subdir + " 子文件数: " + this.num_subfile +"]" ;
-            }
-            else
-            {//文件
-                return this.name + " (" + this.getSize( this.size )  + ")" ;
-            }
+            if(this.isDir ) return this.name + " [文件夹大小:" +  this.getSize(this.size )  + " 子文件夹数: " + this.num_subdir + " 子文件数: " + this.num_subfile +"]" ;
+            else return this.name + " (" + this.getSize( this.size )  + ")" ; //文件
          };
 
         ofile.getAllInfo = function( blank, level ) {
@@ -327,7 +312,7 @@
                 level++;
                for(var n = 0 ; n < this.sub_file_objs.length ; n++) {
                  info +=  level+ this.sub_file_objs[n].getAllInfo(blank+"│  ", level);
-             }
+               }
             }
             else
             {//文件
@@ -341,7 +326,6 @@
             { //文件夹
                 this.size=0;
                for(var n = 0 ; n < this.sub_file_objs.length ; n++) {
-
                  this.size += this.sub_file_objs[n].getAllSize();
              }
             }
@@ -361,10 +345,98 @@
         $('.' + classMap['title']).append($dropdownbutton3);
         $dropdownbutton3.click(exportSubDir);
 
-        var $dropdownbutton2 = $('<a class="list-filter" href="javascript:void( 0 );" onclick="getGID()" node-type="btn_export" title="为了导出子文件夹，需要先获取主目录信息。\n请在文件库根目录下，选择要导出的子目录所在的根目录后执行!" style="display: inline;">ID</a>');
-        $('.' + classMap['title']).append($dropdownbutton2);
-        $dropdownbutton2.click(getGID);
     }
     addButton();
+
+
+    function replaceLink(link) {
+        return link ? link.replace(/&/g, '&amp;') : '';
+    }
+
+    function detectPage() {
+        let regx = /[\/].+[\/]/g;
+        let page = location.pathname.match(regx);
+        return page[0].replace(/\//g, '');
+    }
+
+    function getCookie(e) {
+        let o, t;
+        let n = document, c = decodeURI;
+        return n.cookie.length > 0 && (o = n.cookie.indexOf(e + "="), -1 != o) ? (o = o + e.length + 1, t = n.cookie.indexOf(";", o), -1 == t && (t = n.cookie.length), c(n.cookie.substring(o, t))) : "";
+    }
+
+    function setCookie(key, value, t) {
+        let oDate = new Date();  //创建日期对象
+        oDate.setTime(oDate.getTime() + t * 60 * 1000); //设置过期时间
+        document.cookie = key + '=' + value + ';expires=' + oDate.toGMTString();  //设置cookie的名称，数值，过期时间
+    }
+
+    function getValue(name) {
+        return GM_getValue(name);
+    }
+
+    function setValue(name, value) {
+        GM_setValue(name, value);
+    }
+
+    function getStorage(key) {
+        return localStorage.getItem(key);
+    }
+
+    function setStorage(key, value) {
+        return localStorage.setItem(key, value);
+    }
+
+    function encode(str) {
+        return btoa(unescape(encodeURIComponent(btoa(unescape(encodeURIComponent(str))))));
+    }
+
+    function decode(str) {
+        return decodeURIComponent(escape(atob(decodeURIComponent(escape(atob(str))))));
+    }
+
+    function getLogID() {
+        let name = "BAIDUID";
+        let u = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/~！@#￥%……&";
+        let d = /[\uD800-\uDBFF][\uDC00-\uDFFFF]|[^\x00-\x7F]/g;
+        let f = String.fromCharCode;
+
+        function l(e) {
+            if (e.length < 2) {
+                let n = e.charCodeAt(0);
+                return 128 > n ? e : 2048 > n ? f(192 | n >>> 6) + f(128 | 63 & n) : f(224 | n >>> 12 & 15) + f(128 | n >>> 6 & 63) + f(128 | 63 & n);
+            }
+            let n = 65536 + 1024 * (e.charCodeAt(0) - 55296) + (e.charCodeAt(1) - 56320);
+            return f(240 | n >>> 18 & 7) + f(128 | n >>> 12 & 63) + f(128 | n >>> 6 & 63) + f(128 | 63 & n);
+        }
+
+        function g(e) {
+            return (e + "" + Math.random()).replace(d, l);
+        }
+
+        function m(e) {
+            let n = [0, 2, 1][e.length % 3];
+            let t = e.charCodeAt(0) << 16 | (e.length > 1 ? e.charCodeAt(1) : 0) << 8 | (e.length > 2 ? e.charCodeAt(2) : 0);
+            let o = [u.charAt(t >>> 18), u.charAt(t >>> 12 & 63), n >= 2 ? "=" : u.charAt(t >>> 6 & 63), n >= 1 ? "=" : u.charAt(63 & t)];
+            return o.join("");
+        }
+
+        function h(e) {
+            return e.replace(/[\s\S]{1,3}/g, m);
+        }
+
+        function p() {
+            return h(g((new Date()).getTime()));
+        }
+
+        function w(e, n) {
+            return n ? p(String(e)).replace(/[+\/]/g, (e) => {
+                return "+" == e ? "-" : "_";
+            }).replace(/=/g, "") : p(String(e));
+        }
+
+        return w(getCookie(name));
+    }
+
 //    alert("导出");
 })();
